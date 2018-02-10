@@ -1,5 +1,7 @@
 import settings
 
+from collections import deque
+
 from sqlalchemy import create_engine   
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils.functions import database_exists, create_database
@@ -28,7 +30,6 @@ class AbstractDatabaseHelper(object):
         Obtains the datetime (in UTC) of the most recent
         block in the database. Returns blocktime.
         """
-        # import pdb; pdb.set_trace() # DEBUG
         results = self.session.query(func.max(Block.timestamp)).all()
         return results[0][0]
 
@@ -44,8 +45,11 @@ class AbstractDatabaseHelper(object):
         """
         Returns a list of block numbers already in the database.
         """
+        queue = deque()
         results = self.session.query(Block.number).distinct()
-        return [r[0] for r in results]
+        for r in results:
+            queue.append(r[0])
+        return queue
 
     def create_database_session(self):
         """

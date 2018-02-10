@@ -12,6 +12,8 @@ import time
 import datetime
 import tqdm
 
+import settings
+
 from blockme.util.db_util import EthereumDatabaseHelper
 from blockme.util import crawler_util
 from blockme.util.logging_util import get_blockme_logger
@@ -19,40 +21,13 @@ from blockme.util.logging_util import get_blockme_logger
 
 class Crawler(object):
     """
-    A client to migrate blockchain from geth to mongo.
-
-    Description:
-    ------------
-    Before starting, make sure geth is running in RPC (port 8545 by default).
-    Initializing a Crawler object will automatically scan the blockchain from
-    the last block saved in mongo to the most recent block in geth.
-
-    Parameters:
-    -----------
-    rpc_port: <int> default 8545 	# The port on which geth RPC can be called
-    host: <string> default "http://localhost" # The geth host
-    start: <bool> default True		# Create the graph upon instantiation
-
-    Usage:
-    ------
-    Default behavior:
-        crawler = Crawler()
-
-    Interactive mode:
-        crawler = Crawler(start=False)
-
-    Get the data from a particular block:
-        block = crawler.getBlock(block_number)
-
-    Save the block to mongo. This will fail if the block already exists:
-        crawler.saveBlock(block)
-
+    A client to migrate blockchain from geth to a database.
     """
 
     def __init__(
         self,
         start=True,
-        rpc_port=8545,
+        rpc_port=settings.ETHEREUM_JSON_RPC_PORT,
         host="http://127.0.0.1",
         delay=0.0001
     ):
@@ -61,7 +36,6 @@ class Crawler(object):
         self.logger.debug("Starting Crawler")
         self.url = "{}:{}".format(host, rpc_port)
         self.headers = {"content-type": "application/json"}
-
 
         self.blocks_to_insert = []
         self.transactions_to_insert = []
@@ -106,15 +80,16 @@ class Crawler(object):
 
     def get_block_and_associated_transactions(self, n):
         """Get a specific block from the blockchain and filter the data."""
-        self.logger.info(f'Obtaining block {n} from the chain')
-        data = self._rpcRequest("eth_getBlockByNumber", [n, True], "result")
+        data = self._rpcRequest("eth_getBlockByNumber", [hex(n), True], "result")
         block, transactions = crawler_util.decode_block(data)
         return block, transactions
 
     def highest_block_eth(self):
         """Find the highest numbered block in geth."""
-        num_hex = self._rpcRequest("eth_blockNumber", [], "result")
-        return int(num_hex, 16)
+        self.logger.info("Obtaining highst block on geth.")
+        num_hex = int(self._rpcRequest("eth_blockNumber", [], "result"), 16)
+        self.logger.info(f"Highest block found: {num_hex}.")
+        return num_hex
 
     def save_blocks_and_transactions_to_database(self):
         """Insert a given parsed block into database."""
@@ -149,8 +124,7 @@ class Crawler(object):
         start_time = datetime.datetime.utcnow()
         self.logger.debug("Processing geth blockchain:")
         self.logger.info("Highest block found as: {}".format(self.max_block_geth))
-        self.logger.info("Number of blocks to process: {}".format(
-            len(self.block_queue)))
+        self.logger.info(f"Number of blocks to process: {len(self.block_queue)}")
 
         # Make sure the database isn't missing any blocks up to this point
         self.logger.debug("Verifying that the database isn't missing any blocks...")
