@@ -1,5 +1,7 @@
 import settings
 
+from collections import deque
+
 from sqlalchemy import create_engine   
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils.functions import database_exists, create_database
@@ -7,6 +9,7 @@ from sqlalchemy.sql.expression import func
 
 from blockme.util.parser_util import convert_base_16_unix_time_to_datetime
 from blockme.models.ethereum import Block, Transaction, base
+from blockme.util.logging_util import get_blockme_file_logger
 
 
 class BaseDatabaseException(Exception):
@@ -19,8 +22,8 @@ class SessionDoesNotExist(BaseDatabaseException):
 
 class AbstractDatabaseHelper(object):
 
-    def __init__(self, logger):
-        self.logger = logger
+    def __init__(self):
+        self.logger = get_blockme_file_logger()
         self.session = self.create_database_session()
 
     def get_latest_block_in_database(self):
@@ -28,7 +31,6 @@ class AbstractDatabaseHelper(object):
         Obtains the datetime (in UTC) of the most recent
         block in the database. Returns blocktime.
         """
-        # import pdb; pdb.set_trace() # DEBUG
         results = self.session.query(func.max(Block.timestamp)).all()
         return results[0][0]
 
@@ -44,8 +46,11 @@ class AbstractDatabaseHelper(object):
         """
         Returns a list of block numbers already in the database.
         """
+        queue = deque()
         results = self.session.query(Block.number).distinct()
-        return [r[0] for r in results]
+        for r in results:
+            queue.append(r[0])
+        return queue
 
     def create_database_session(self):
         """
@@ -93,7 +98,7 @@ class EthereumDatabaseHelper(AbstractDatabaseHelper):
             block['nonce'] = b['nonce']
             block['transactions_root'] = b['transactionsRoot']
             block['state_root'] = b['stateRoot']
-            block['receipt_root'] = b['receiptRoot']
+            block['receipt_root'] = b['receiptsRoot']
             block['miner'] = b['miner']
             block['difficulty'] = b['difficulty']
             block['total_difficulty'] = b['totalDifficulty']

@@ -40,7 +40,7 @@ class Block(base):
     __tablename__ = 'block'
     __table_args__ = {"schema": settings.ETHEREUM_SCHEMA}
 
-    number = Column(BigInteger, primary_key=True, autoincrement=False, index=True, unique=True)
+    number = Column(BigInteger, primary_key=True, autoincrement=False, index=True)
     block_hash = Column(String(256), unique=True)
     parent_hash = Column(String(256))
     nonce = Column(String(256))
@@ -81,8 +81,8 @@ class Transaction(base):
 
     db_id = Column(BigInteger, primary_key=True, autoincrement=True)
     transaction_hash = Column(String(256), unique=True)
-    block_number = Column(BigInteger, ForeignKey(Block.number), index=True)
-    block_hash = Column(String(256), ForeignKey(Block.block_hash))
+    block_number = Column(BigInteger, index=True)
+    block_hash = Column(String(256))
     nonce = Column(String(256))
     transaction_index = Column(BigInteger)
     sender = Column(String(256), index=True)

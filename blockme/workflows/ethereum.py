@@ -10,64 +10,40 @@ import json
 import os
 import time
 import datetime
+import sys
 import tqdm
+
+import settings
 
 from blockme.util.db_util import EthereumDatabaseHelper
 from blockme.util import crawler_util
-from blockme.util.logging_util import get_blockme_logger
+from blockme.util.logging_util import get_blockme_console_logger, \
+    get_insertion_error_file_logger
 
 
 class Crawler(object):
     """
-    A client to migrate blockchain from geth to mongo.
-
-    Description:
-    ------------
-    Before starting, make sure geth is running in RPC (port 8545 by default).
-    Initializing a Crawler object will automatically scan the blockchain from
-    the last block saved in mongo to the most recent block in geth.
-
-    Parameters:
-    -----------
-    rpc_port: <int> default 8545 	# The port on which geth RPC can be called
-    host: <string> default "http://localhost" # The geth host
-    start: <bool> default True		# Create the graph upon instantiation
-
-    Usage:
-    ------
-    Default behavior:
-        crawler = Crawler()
-
-    Interactive mode:
-        crawler = Crawler(start=False)
-
-    Get the data from a particular block:
-        block = crawler.getBlock(block_number)
-
-    Save the block to mongo. This will fail if the block already exists:
-        crawler.saveBlock(block)
-
+    A client to migrate blockchain from geth to a database.
     """
 
     def __init__(
         self,
         start=True,
-        rpc_port=8545,
+        rpc_port=settings.ETHEREUM_JSON_RPC_PORT,
         host="http://127.0.0.1",
-        delay=0.0001
+        delay=0.0001,
+        chunk_size=10000
     ):
         """Initialize the Crawler."""
-        self.logger = get_blockme_logger()
+        self.logger = get_blockme_console_logger()
         self.logger.debug("Starting Crawler")
         self.url = "{}:{}".format(host, rpc_port)
         self.headers = {"content-type": "application/json"}
 
-
-        self.blocks_to_insert = []
-        self.transactions_to_insert = []
+        self.chunk_size = chunk_size
 
         # Initializes to default host/port = localhost/27017
-        self.database_client = EthereumDatabaseHelper(logger=self.logger)
+        self.database_client = EthereumDatabaseHelper()
 
         # The max block number that is in the database
         self.max_block_db = None
@@ -76,7 +52,7 @@ class Crawler(object):
         self.max_block_geth = None
 
         # Record errors for inserting block data into the database
-        self.insertion_errors = []
+        self.insertion_error_logger = get_insertion_error_file_logger()
 
         # Make a stack of block numbers that are in the database
         self.block_queue = self.database_client.get_block_queue()
@@ -106,20 +82,30 @@ class Crawler(object):
 
     def get_block_and_associated_transactions(self, n):
         """Get a specific block from the blockchain and filter the data."""
-        self.logger.info(f'Obtaining block {n} from the chain')
-        data = self._rpcRequest("eth_getBlockByNumber", [n, True], "result")
+        data = self._rpcRequest("eth_getBlockByNumber", [hex(n), True], "result")
         block, transactions = crawler_util.decode_block(data)
         return block, transactions
 
     def highest_block_eth(self):
         """Find the highest numbered block in geth."""
-        num_hex = self._rpcRequest("eth_blockNumber", [], "result")
-        return int(num_hex, 16)
+        self.logger.info("Obtaining highst block on geth.")
+        num_hex = int(self._rpcRequest("eth_blockNumber", [], "result"), 16)
+        self.logger.info(f"Highest block found: {num_hex}.")
+        return num_hex
 
-    def save_blocks_and_transactions_to_database(self):
+    def save_blocks_and_transactions_to_database(self, blocks, transactions):
         """Insert a given parsed block into database."""
-        self.database_client.insert_blocks(self.blocks_to_insert)
-        self.database_client.insert_transactions(self.transactions_to_insert)
+        try:
+            self.database_client.insert_blocks(blocks)
+        except:
+            the_type, the_value, the_traceback = sys.exc_info()
+            message = f'\n------\n{the_type}\n{the_value}\n{the_traceback}\n------'
+            self.insertion_error_logger.error(message)
+        try:
+            self.database_client.insert_transactions(transactions)
+        except:
+            message = f'\n------\n{the_type}\n{the_value}\n{the_traceback}\n------'
+            self.insertion_error_logger.error(message)
 
     def highest_block_database(self):
         """Find the highest numbered block in the database."""
@@ -130,14 +116,23 @@ class Crawler(object):
     def collect_block_and_transactions(self, n):
         """Prepare blocks and transactions to add to database"""
         block, transactions = self.get_block_and_associated_transactions(n)
+        blocks_to_insert = []
+        transactions_to_insert = []
         
         if block:
-            self.blocks_to_insert.append(block)
+            blocks_to_insert.append(block)
             time.sleep(0.001)
         
         if transactions:
-            self.transactions_to_insert.extend(transactions)
+            transactions_to_insert = transactions
             time.sleep(0.001)
+
+        return blocks_to_insert, transactions_to_insert
+
+    def chunk(self, l, n):
+        """Yield successive n-sized chunks from l."""
+        for i in range(0, len(l), n):
+            yield l[i:i + n]
 
     def run(self):
         """
@@ -149,8 +144,7 @@ class Crawler(object):
         start_time = datetime.datetime.utcnow()
         self.logger.debug("Processing geth blockchain:")
         self.logger.info("Highest block found as: {}".format(self.max_block_geth))
-        self.logger.info("Number of blocks to process: {}".format(
-            len(self.block_queue)))
+        self.logger.info(f"Number of blocks to process: {len(self.block_queue)}")
 
         # Make sure the database isn't missing any blocks up to this point
         self.logger.debug("Verifying that the database isn't missing any blocks...")
@@ -172,19 +166,31 @@ class Crawler(object):
                     # we will add _n back to the queue.
                     _n = self.block_queue.popleft()
                     if n != _n:
-                        self.collect_block_and_transactions(n)
+                        blocks, transactions = self.collect_block_and_transactions(n)
                         self.block_queue.appendleft(_n)
-                        self.logger.info("Added block {}".format(n))
 
         # Get all new blocks
         self.logger.info("Processing remainder of the blockchain...")
-        for n in tqdm.tqdm(range(self.max_block_db, self.max_block_geth)):
-            self.collect_block_and_transactions(n)
+        blocks_to_pull = range(self.max_block_db, self.max_block_geth)
+        chunked_blocks = self.chunk(blocks_to_pull, self.chunk_size)
+        total = len([i for i in self.chunk(blocks_to_pull, self.chunk_size)])
+        for i,chunk in enumerate(chunked_blocks):
+            self.logger.info(f'Processing chunk {i} of {total}')
+            for n in tqdm.tqdm(chunk):
+                blocks, transactions = self.collect_block_and_transactions(n)
+                self.save_blocks_and_transactions_to_database(
+                    blocks, transactions)
 
-        self.save_blocks_and_transactions_to_database()
         end_time = datetime.datetime.utcnow()
         self.logger.info("===============================")
         self.logger.info("Processing complete.")
-        runtime = (end_time - start_time).seconds
-        self.logger.info(f'Runtime: {runtime} seconds.')
+        self.logger.info(f"Identified {len(self.insertion_errors)} insertion errors.")
+        self.logger.info(
+            f"These can be viewed in {settings.INSERTION_ERROR_FILE}")
+        runtime = time.strftime(
+            '%H:%M:%S',
+            time.gmtime((end_time - start_time).seconds)
+        )
+        self.logger.info('----------')
+        self.logger.info(f'Runtime (HH:MM:SS): {runtime}')
         self.logger.info("===============================")
