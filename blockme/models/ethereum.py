@@ -1,10 +1,11 @@
 import datetime
 import settings
 
-from sqlalchemy import Column, String, BigInteger, DateTime, ForeignKey
+from sqlalchemy import Column, String, BigInteger, DateTime, ForeignKey, Numeric
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import event
 from sqlalchemy.schema import DDL
+from sqlalchemy.orm import relationship
 
 
 # db = create_engine(db_string)
@@ -54,8 +55,20 @@ class Block(base):
     gas_limit = Column(BigInteger)
     gase_used = Column(BigInteger)
     timestamp = Column(DateTime, index=True)
-    dt_inserted = Column(DateTime, onupdate=datetime.datetime.utcnow)
+    dt_inserted = Column(
+        DateTime,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow
+    )
 
+    # block_numbers = relationship(
+    #     'Transaction',
+    #     primaryjoin='Block.number==Transaction.block_number',
+    #     foreign_keys='Block.number')
+    # block_hashes = relationship(
+    #     'Transaction',
+    #     primaryjoin='Block.block_hash==Transaction.block_hash',
+    #     foreign_keys='Block.block_hash')
 
 class Transaction(base):
     """
@@ -81,16 +94,23 @@ class Transaction(base):
 
     db_id = Column(BigInteger, primary_key=True, autoincrement=True)
     transaction_hash = Column(String(256), unique=True)
-    block_number = Column(BigInteger, index=True)
-    block_hash = Column(String(256))
+    block_number = Column(BigInteger, ForeignKey(Block.number), index=True)
+    block_hash = Column(String(256), ForeignKey(Block.block_hash))
     nonce = Column(String(256))
     transaction_index = Column(BigInteger)
     sender = Column(String(256), index=True)
     receipt = Column(String(256), index=True)
-    value = Column(BigInteger)
+    value = Column(Numeric(20,10))
     gas = Column(BigInteger)
     gas_price = Column(BigInteger)
-    dt_inserted = Column(DateTime, onupdate=datetime.datetime.utcnow)
+    dt_inserted = Column(
+        DateTime,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow
+    )
+
+    block_numbers = relationship("Block", foreign_keys='Transaction.block_number')
+    block_hashes = relationship("Block", foreign_keys='Transaction.block_hash')
 
 
 event.listen(

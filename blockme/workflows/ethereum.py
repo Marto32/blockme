@@ -101,9 +101,11 @@ class Crawler(object):
             the_type, the_value, the_traceback = sys.exc_info()
             message = f'\n------\n{the_type}\n{the_value}\n{the_traceback}\n------'
             self.insertion_error_logger.error(message)
+
         try:
             self.database_client.insert_transactions(transactions)
         except:
+            the_type, the_value, the_traceback = sys.exc_info()
             message = f'\n------\n{the_type}\n{the_value}\n{the_traceback}\n------'
             self.insertion_error_logger.error(message)
 
@@ -124,7 +126,7 @@ class Crawler(object):
             time.sleep(0.001)
         
         if transactions:
-            transactions_to_insert = transactions
+            transactions_to_insert.extend(transactions)
             time.sleep(0.001)
 
         return blocks_to_insert, transactions_to_insert
