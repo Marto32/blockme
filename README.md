@@ -6,12 +6,16 @@ NOTE: While not a direct fork, this was inspired by and derived from [Alex Mille
 
 ## Prerequisites
 
+#### Python
 This has been built and tested on [python 3.6](https://www.python.org/downloads/release/python-360/). Please ensure you have the latest version.
 
+#### Virtual Env
 It his highly recommended that you use a [virtual environment](http://docs.python-guide.org/en/latest/dev/virtualenvs/) to ensure that anything installed doesn't conflict with your standard environment.
 
+#### Postgres
 We use `PostgreSQL` as our relational database of choice. `blockme` uses [SQL Alchemy](https://www.sqlalchemy.org/) so if you prefer to use another database, ensure it's compatabily with `sqlalchemy` and enter the credentials (and modify the url in the `settings` file) as needed. You can install postgres using your preferred package manager (`brew`, `apt`, etc.) or from source [here](https://www.postgresql.org/download/).
 
+#### Geth
 Ensure you have [`geth`](https://github.com/ethereum/go-ethereum/wiki/geth) installed. `blockme` makes use of the JSON-RPC endpoint to parse the ethereum blockchain. You can read more about the JSON-RPC endpoint [here](https://github.com/ethereum/wiki/wiki/JSON-RPC#json-rpc-endpoint).
 
 **WARNING** if you run this on a geth client containing an account that has ether in it, make sure you put a firewall 8545 or whatever port you run geth RPC on.
@@ -48,7 +52,7 @@ export PG_PORT=5432                                # Defaults to the 5432
 export PG_DATABASE_NAME='blockme_db'               # Defaults to 'devdb'
 ```
 
-Additional configuration options can be found in the `settings.py` file.
+Additional configuration options can be found in the `settings.py` file. Alternatively you can just hardcode the values into that file.
 
 Run blockme
 
