@@ -56,6 +56,14 @@ Run blockme
 python runner.py
 ```
 
+## Troubleshooting
+
+If you are getting blockme import errors, you may have to update your `PATH` when you launch the script. To do so, update your launch command to the following:
+
+```shell
+PATH=$PATH:/path/to/blockme python runner.py
+```
+
 ## Analysis
 
 The data will now be available for querying in the database. To get an idea of the schema, take a look at the objects in the `blockme/models` directory.

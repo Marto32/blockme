@@ -9,6 +9,7 @@ from sqlalchemy.sql.expression import func
 
 from blockme.util.parser_util import convert_base_16_unix_time_to_datetime
 from blockme.models.ethereum import Block, Transaction, base
+from blockme.util.logging_util import get_blockme_file_logger
 
 
 class BaseDatabaseException(Exception):
@@ -21,8 +22,8 @@ class SessionDoesNotExist(BaseDatabaseException):
 
 class AbstractDatabaseHelper(object):
 
-    def __init__(self, logger):
-        self.logger = logger
+    def __init__(self):
+        self.logger = get_blockme_file_logger()
         self.session = self.create_database_session()
 
     def get_latest_block_in_database(self):
@@ -97,7 +98,7 @@ class EthereumDatabaseHelper(AbstractDatabaseHelper):
             block['nonce'] = b['nonce']
             block['transactions_root'] = b['transactionsRoot']
             block['state_root'] = b['stateRoot']
-            block['receipt_root'] = b['receiptRoot']
+            block['receipt_root'] = b['receiptsRoot']
             block['miner'] = b['miner']
             block['difficulty'] = b['difficulty']
             block['total_difficulty'] = b['totalDifficulty']
