@@ -36,6 +36,8 @@ Launch geth using the following command:
 geth --rpc
 ```
 
+More `geth` CLI options may be found [here](https://github.com/ethereum/go-ethereum/wiki/Command-Line-Options).
+
 Set environment variables (or use defaults for local development):
 
 ```shell
