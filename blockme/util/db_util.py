@@ -93,7 +93,7 @@ class EthereumDatabaseHelper(AbstractDatabaseHelper):
         for b in block_list:
             block = {}
             block['number'] = int(b['number'], 16)
-            block['block_hash'] = int(b['hash'], 16)
+            block['block_hash'] = b['hash']
             block['parent_hash'] = b['parentHash']
             block['nonce'] = b['nonce']
             block['transactions_root'] = b['transactionsRoot']
@@ -135,7 +135,7 @@ class EthereumDatabaseHelper(AbstractDatabaseHelper):
             transaction['block_number'] = int(t['blockNumber'], 16)
             transaction['block_hash'] = t['blockHash']
             transaction['nonce'] = t['nonce']
-            transaction['transaction_index'] = t['transactionsIndex']
+            transaction['transaction_index'] = int(t['transactionIndex'], 16)
             transaction['sender'] = t['from']
             transaction['receipt'] = t['to']
             transaction['value'] = int(t['value'], 16)/1000000000000000000.
